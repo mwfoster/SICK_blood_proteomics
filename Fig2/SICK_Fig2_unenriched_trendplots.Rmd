@@ -1,0 +1,144 @@
+---
+title: "Protein Abundance Timecourse Analysis (Z-scored, Outliers Removed)"
+author: "M. Foster"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readr)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Load Data
+
+```{r load-data}
+timecourse <- read_csv("timecourse_subjects.csv")
+mofa <- read_csv("unenriched_MOFA.csv")
+```
+
+## Prepare Data
+
+```{r prep-data}
+# Long format for MOFA
+duke_cols <- colnames(mofa)[-1]
+mofa_long <- mofa %>%
+  pivot_longer(-Accession, names_to = "DukeID", values_to = "Abundance") %>%
+  mutate(DukeID = as.integer(DukeID))
+
+# Timepoint mapping
+time_map <- timecourse %>%
+  dplyr::select(PID, Timepoint, DukeID) %>%
+  mutate(TimeLabel = case_when(
+    Timepoint == 1 ~ "d0",
+    Timepoint == 2 ~ "d1",
+    Timepoint == 3 ~ "d3",
+    Timepoint == 4 ~ "d28"
+  ))
+```
+
+## Z-score and Outlier Removal
+
+```{r zscore-clean}
+# Z-score across rows (i.e., per protein across all DukeIDs)
+mofa_z <- mofa
+mofa_z[duke_cols] <- t(apply(mofa[duke_cols], 1, scale))
+mofa_z <- as_tibble(mofa_z)
+mofa_z$Accession <- mofa$Accession
+
+# Convert to long format and join metadata
+mofa_z_long <- mofa_z %>%
+  pivot_longer(-Accession, names_to = "DukeID", values_to = "Zscore") %>%
+  mutate(DukeID = as.integer(DukeID)) %>%
+  inner_join(time_map, by = "DukeID") %>%
+  filter(abs(Zscore) <= 3)  # remove outliers AFTER join (ensures TimeLabel is present)
+```
+
+## Plotting Function
+
+```{r plot-function}
+plot_zscored_protein <- function(protein_name, save_path = NULL, y_label = NULL) {
+  df <- mofa_z_long %>% filter(Accession == protein_name)
+
+  summary_stats <- df %>%
+    group_by(TimeLabel) %>%
+    summarize(mean = mean(Zscore, na.rm = TRUE),
+              sem = sd(Zscore, na.rm = TRUE) / sqrt(n()), .groups = "drop")
+
+  # Use default label if not provided
+  if (is.null(y_label)) {
+    y_label <- paste0(protein_name, " abundance\n(Z-score, outliers removed)")
+  }
+
+  p <- ggplot(df, aes(x = TimeLabel, y = Zscore, group = PID)) +
+    geom_line(color = "gray40") +
+    geom_point(color = "gray40", size=3) +
+    geom_line(data = summary_stats, aes(x = TimeLabel, y = mean, group = 1),
+              color = "red", linewidth = 1.5) +
+    geom_errorbar(data = summary_stats,
+                  aes(x = TimeLabel, ymin = mean - sem, ymax = mean + sem),
+                  inherit.aes = FALSE,
+                  width = 0.15, color = "red", linewidth = 1.5) +
+    labs(x = "Timepoint", y = y_label) +
+    theme_minimal(base_size = 26) +
+    theme(axis.title = element_text(face = "bold"),
+          axis.text = element_text(face = "bold", size = 26),
+          axis.title.y = element_text(face = "bold", hjust = 0.5, vjust = 0.5),
+          axis.text.y = element_text(face = "bold"),
+          panel.grid.major.y = element_line(),
+          panel.grid.minor.y = element_blank()) +
+    scale_x_discrete(limits = c("d0", "d1", "d3", "d28"), expand = expansion(add = c(-0.3, 0)))
+
+  if (!is.null(save_path)) {
+    ggsave(filename = save_path, plot = p, dpi = 300, width = 8, height = 6)
+  }
+
+
+  print(p)
+}
+```
+
+## CRP (Z-scored, Outliers Removed)
+
+```{r crp-z-plot}
+plot_zscored_protein("CRP_HUMAN", save_path = "CRP_plot.png", 
+                     y_label = "CRP\n (Z-score)")
+```
+
+## SAA1
+
+```{r saa1-z-plot}
+plot_zscored_protein("SAA1_HUMAN", save_path = "SAA1_plot.png", 
+                     y_label = "SAA1 (Z-score)")
+```
+
+## KAIN
+
+```{r kain-z-plot}
+plot_zscored_protein("KAIN_HUMAN", save_path = "KAIN_plot.png", 
+                     y_label = "KAIN (Z-score)")
+```
+
+## TTHY
+
+```{r tthy-z-plot}
+plot_zscored_protein("TTHY_HUMAN", save_path = "TTHY_plot.png", 
+                     y_label = "TTHY (Z-score)")
+```
+
+##MMP8
+
+```{r mmp8-z-plot}
+plot_zscored_protein("MMP8_HUMAN", save_path = "MMP8_plot.png",
+                     y_label = "MMP8 (Z-score)")
+
+```
+
+##CATG
+
+```{r catg-z-plot}
+plot_zscored_protein("CATG_HUMAN", save_path = "CATG_plot.png",
+                     y_label = "CATG (Z-score)")
+```
+
+
