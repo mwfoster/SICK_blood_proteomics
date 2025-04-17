@@ -360,3 +360,90 @@ lollipop_plot <- ggplot(filtered_wbc_data, aes(x = Coefficient, y = Accession)) 
 ggsave("wbc_lollipop_plot.png", plot = lollipop_plot, device = "png", dpi = 600)
 
 ```
+
+#plot results for Clus/crp for FigS2
+
+```{r}
+# Specify the Accession and dependent variable for regression
+accession <- "CLUS_HUMAN"  # Example Accession
+dependent_variable <- "crp"  # Example dependent variable
+
+# Extract the row corresponding to the specified Accession
+independent_var <- aligned_unenriched[aligned_unenriched$Accession == accession, ]
+
+# Match sample IDs from "aligned_unenriched" with "Subject.ID" in "prospective_data"
+matched_data <- data.frame(
+  Independent = as.numeric(independent_var),
+  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
+)
+
+# Remove rows with NA values (in case of missing matches)
+matched_data <- na.omit(matched_data)
+
+# Plot the regression results
+plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  labs(
+    x = dependent_variable,
+    y = "CLUS (log2)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 16, face = "bold"),  # Increase x-axis label size
+    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
+    axis.text.x = element_text(size = 16, face = "bold"),   # Increase x-axis label size
+    axis.text.y = element_text(size = 16, face = "bold"),   # Increase y-axis label size
+    plot.title = element_blank()  # Remove title
+  )
+
+# Save the plot
+print(plot)
+
+# Save the plot as a PNG file
+ggsave("FigS2_Clus_crp_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
+```
+
+#plot results for Clus/uvascore for FigS2
+
+```{r}
+# Specify the Accession and dependent variable for regression
+accession <- "CLUS_HUMAN"  # Example Accession
+dependent_variable <- "uvascore"  # Example dependent variable
+
+# Extract the row corresponding to the specified Accession
+independent_var <- aligned_unenriched[aligned_unenriched$Accession == accession, ]
+
+# Match sample IDs from "aligned_unenriched" with "Subject.ID" in "prospective_data"
+matched_data <- data.frame(
+  Independent = as.numeric(independent_var),
+  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
+)
+
+# Remove rows with NA values (in case of missing matches)
+matched_data <- na.omit(matched_data)
+
+# Plot the regression results
+plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  labs(
+    x = dependent_variable,
+    y = "CLUS (log2)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 16, face = "bold"),  # Increase x-axis label size
+    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
+    axis.text.x = element_text(size = 16, face = "bold"),   # Increase x-axis label size
+    axis.text.y = element_text(size = 16, face = "bold"),   # Increase y-axis label size
+    plot.title = element_blank()  # Remove title
+  )
+
+# Save the plot
+print(plot)
+
+# Save the plot as a PNG file
+ggsave("FigS2_Clus_uvascore_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
+
+```
