@@ -1,0 +1,147 @@
+---
+title: "Phosphorylation analysis"
+author: "M. Foster"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+# Loading packages
+library(readr)
+library(dplyr)
+library(stringr)
+
+# Import the nonlocalized TSV file
+
+nonlocalized_data <- "20250320_121541_10555_TiIMAC_25_3_092724_Report_linear_noloc_order.tsv"
+nonlocalized_data <- read_tsv(nonlocalized_data)
+
+# Importing the second TSV file
+localized_data <- "20250320_121541_10555_TiIMAC_25_3_092724_Report_loc_linear_order.tsv"
+localized_data <- read_tsv(localized_data)
+
+# View the first few rows of both datasets
+head(nonlocalized_data)
+head(localized_data)
+```
+
+#Add protein name to PTM.CollapseKey
+
+```{r}
+
+# Replace text before the first "_" in PTM.CollapseKey with PG.ProteinNames
+localized_data$PTM.CollapseKey <- paste0(localized_data$PG.ProteinNames, "_", str_extract(localized_data$PTM.CollapseKey, "(?<=_).*"))
+
+nonlocalized_data$PTM.CollapseKey <- paste0(nonlocalized_data$PG.ProteinNames, "_", str_extract(nonlocalized_data$PTM.CollapseKey, "(?<=_).*"))
+
+# Step 3: Reorder columns to make Combined_Protein_Info the first column
+localized_data <- localized_data %>%
+  dplyr::select(PTM.CollapseKey, everything())
+
+nonlocalized_data <- nonlocalized_data %>%
+  dplyr::select(PTM.CollapseKey, everything())
+
+# Step 4: View the new data frame with the combined column as the first column
+head(localized_data)
+```
+
+#filter nonlocalized data to only include localized phos
+
+```{r}
+# Filter rows where at least 10 "PTM.Quantity" columns are not "Filtered"
+filtered_localized_data <- localized_data %>%
+  dplyr::filter(rowSums(dplyr::select(., contains("PTM.Quantity")) != "Filtered", na.rm = TRUE) >= 10)
+
+# View the filtered dataset
+head(filtered_localized_data)
+
+# Assuming both data frames have a common column to join on, e.g., "id"
+filtered_data <- nonlocalized_data %>%
+  filter(PTM.CollapseKey %in% filtered_localized_data$PTM.CollapseKey)
+
+# View the filtered data
+head(filtered_data)
+```
+
+#Identify abundance columns
+
+```{r}
+
+# Identify columns that contain "PTM.Quantity" in the column name for filtered_nonlocalized_data
+total_quantity_columns_filtered <- grep("PTM.Quantity", colnames(filtered_data), value = TRUE)
+
+# View the columns found in filtered_nonlocalized_data
+total_quantity_columns_filtered
+
+```
+
+#filter missing data in spqc
+
+```{r}
+# Step 1: Identify columns with "SPQC" in the name and "PTM.Quantity" in the header
+spqc_columns <- grep("SPQC", colnames(filtered_data), value = TRUE)
+total_quantity_columns <- grep("PTM.Quantity", colnames(filtered_data), value = TRUE)
+
+# Combine these two sets of columns (i.e., columns that contain both "SPQC" and "PTM.Quantity")
+target_columns <- intersect(spqc_columns, total_quantity_columns)
+
+# Step 2: Remove rows where any of the target columns have 0, 1, or "Filtered"
+valid_rows <- !apply(filtered_data[target_columns], 1, function(x) any(x %in% c(0, 1, "Filtered")))
+
+# Step 3: Keep only rows where "EG.PrecursorId" contains "Phospho"
+phospho_rows <- grepl("Phospho", filtered_data$PTM.ModificationTitle)
+
+# Combine the conditions: valid rows and phospho rows
+filtered_data <- filtered_data[valid_rows & phospho_rows, ]
+
+# View the filtered data (optional)
+head(filtered_data)
+```
+
+#combine redundant rows
+
+```{r}
+
+# Identify all PTM.Quantity columns
+ptm_quantity_cols <- grep("PTM.Quantity", names(filtered_data), value = TRUE)
+
+# Define grouping columns (PG.ProteinNames + PTM.Quantity columns)
+group_cols <- c("PG.ProteinNames", ptm_quantity_cols)
+
+# Group by and summarize site locations
+collapsed <- filtered_data %>%
+  group_by(across(all_of(group_cols))) %>%
+  summarise(
+    PTM.SiteLocation = paste(sort(unique(PTM.SiteLocation)), collapse = ";"),
+    .groups = "drop"
+  )
+
+# Merge back with original to get one representative row per group
+filtered_data_nonredundant <- filtered_data %>%
+  distinct(across(all_of(group_cols)), .keep_all = TRUE) %>%
+  inner_join(collapsed, by = group_cols)
+
+# Update PTM.CollapseKey
+filtered_data_nonredundant <- filtered_data_nonredundant %>%
+  mutate(PTM.CollapseKey = paste0(PTM.CollapseKey, "_", PTM.SiteLocation.y))
+
+```
+
+##export data
+
+```{r}
+# Step 1: Identify the columns to keep
+columns_to_keep <- c("PTM.CollapseKey",grep("PTM.Quantity", colnames(filtered_data_nonredundant), value = TRUE))
+
+# Step 2: Subset the filtered_data to keep only the identified columns
+filtered_data_subset <- filtered_data_nonredundant[, columns_to_keep]
+
+# View the subsetted data (optional)
+head(filtered_data_subset)
+
+# Export the filtered_nonlocalized_data to a TSV file
+write.table(filtered_data_subset, "SICK_PTMsite_linear_10pct_MOFA.tsv", sep = "\t", row.names = FALSE, quote = FALSE)
+```
