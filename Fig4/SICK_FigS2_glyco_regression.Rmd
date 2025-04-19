@@ -1,0 +1,333 @@
+---
+title: "SICK_FigS2: Glyco_regression"
+author: "M. Foster"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r}
+library(tidyverse)
+library(broom)
+library(multcomp)
+library(dplyr)
+
+
+```
+
+## Load Data
+```{r}
+# Load datasets
+prospective_data <- read.csv("Day0_clinical_data.csv") %>% as_tibble()
+glyco_data <- read.csv("glyco_MOFA.csv") %>% as_tibble()
+
+# Display structure of the datasets
+str(prospective_data)
+str(glyco_data)
+```
+
+```{r}
+
+# Filter data
+filtered_data <- prospective_data %>%
+  dplyr::select(Subject.ID, Sample.ID) # Select PID and the first DukeID column
+
+# Clean the data: Keep Accession column and fix column names
+cleaned_glyco_data <- glyco_data %>%
+  dplyr::rename_with(~ str_remove(., "^X"), -Accession)  # Remove leading X from column names except Accession
+
+# Define a function to abbreviate feature names
+abbreviate_feature_name <- function(feature_name) {
+  parts <- strsplit(feature_name, "_")[[1]]
+  
+  if (length(parts) > 1) {
+    # Keep the first part as-is
+    # Abbreviate the first 4 characters after the first "_" and replace specific patterns after the second "_"
+    processed <- paste0(
+      parts[1], "_",
+      paste0(ifelse(seq_along(parts[-1]) == 1, substr(parts[-1], 1, 4), 
+                    gsub("Hex", "H", gsub("HexNAc", "N", gsub("NeuAc", "S", gsub("Fuc", "F", parts[-1]))))), collapse = "_")
+    )
+  } else {
+    processed <- feature_name
+  }
+  
+  return(processed)
+}
+
+# Apply the function to the "Accession" column of "cleaned_glyco_data"
+cleaned_glyco_data$Accession <- sapply(cleaned_glyco_data$Accession, abbreviate_feature_name)
+
+# View the updated data
+dim(cleaned_glyco_data)  # To confirm dimensions
+head(cleaned_glyco_data)  # Preview the first few rows
+
+
+# Create a logical vector indicating which columns in `cleaned_glyco_data` match `DukeID` in `data`
+matched_columns <- colnames(cleaned_glyco_data) %in% prospective_data$Sample.ID
+
+# Keep only the `Accession` column and matched columns, then rename them with `PID`
+updated_glyco_data <- cleaned_glyco_data %>%
+  dplyr::select(Accession, all_of(colnames(cleaned_glyco_data)[matched_columns])) %>%  # Filter for matched columns
+  rename_with(
+    ~ ifelse(. %in% prospective_data$Sample.ID, prospective_data$`Subject.ID`[match(., prospective_data$Sample.ID)], .), 
+    -Accession # Exclude `Accession` from renaming
+  )
+
+# Preprocessing function to handle duplicates and retain 'Accession'
+  # Ensure 'Accession' is a character column
+  updated_glyco_data$Accession <- as.character(updated_glyco_data$Accession)
+  
+  # Make 'Accession' unique
+ updated_glyco_data$Accession <- make.unique(updated_glyco_data$Accession)
+
+```
+##KNN imputation
+```{r}
+
+library(VIM)
+
+# Perform KNN imputation
+imputed_glyco_data <- kNN(updated_glyco_data, k = 5, variable = names(updated_glyco_data)[-1])  # Replace 'k' with the desired number of neighbors
+
+# Remove the `.imp` columns added by kNN
+imputed_glyco_data <- imputed_glyco_data[, !grepl("\\imp$", names(imputed_glyco_data))]
+
+# Optional: Display a summary of the imputed data
+summary(imputed_glyco_data)
+
+# Write the imputed data to a CSV file
+write.csv(imputed_glyco_data, "imputed_glyco_Data.csv", row.names = FALSE)
+
+```
+## Log2 Transformation of Glyco
+```{r}
+imputedlog2glyco_data <- imputed_glyco_data %>%
+  mutate(across(-Accession, ~log2(. + 1)))  # Apply log2 transformation to all columns except 'Accession'
+
+# Display a preview of the transformed data
+head(imputedlog2glyco_data)
+
+# Save the transformed MOFA data
+write.csv(imputedlog2glyco_data, "Log2_imputed_KNN_glyco_Data.csv", row.names = FALSE)
+```
+
+## Align MOFA Data and Confirm Matching IDs
+```{r}
+
+# Standardize column names in MOFA data to match `Subject.ID` in prospective data
+colnames(imputedlog2glyco_data) <- colnames(imputedlog2glyco_data) %>%
+  str_replace_all("\\.", "-")  # Replace `.` with `-`
+
+# Check if all `Subject.ID` values in prospective_data are in MOFA column names
+missing_Subject.IDs <- setdiff(prospective_data$Subject.ID, colnames(imputedlog2glyco_data))
+if (length(missing_Subject.IDs) > 0) {
+  print("The following Subject.IDs are missing in MOFA data:")
+  print(missing_Subject.IDs)
+} else {
+  print("All Subject.IDs in prospective data are matched in MOFA data.")
+}
+
+# Align glyco data with filtered prospective data
+aligned_glyco <- imputedlog2glyco_data %>%
+  dplyr::select(any_of(c("Accession", prospective_data$Subject.ID)))  # Ensure Accession is always included
+
+# Save the aligned MOFA data
+write.csv(aligned_glyco, "Aligned_glyco_Data.csv", row.names = FALSE)
+write.csv(prospective_data, "Prospective_data.csv", row.names = FALSE)
+
+#aligned_glyco <- read.csv("Aligned_glyco_Data.csv") %>% as_tibble()
+#prospective_data <- read.csv("Prospective_data.csv") %>% as_tibble()
+```
+#perform regression on all dependent variables
+```{r}
+# List all columns except the first two
+predictor_columns <- colnames(prospective_data)[-c(1, 2)]
+
+# Loop through each dependent variable in predictor_columns
+for (dependent_variable in predictor_columns) {
+  
+  # Step 1: Filter the data for the current dependent variable (remove rows with missing values)
+  data_filtered <- prospective_data %>%
+    dplyr::select(Subject.ID, all_of(dependent_variable)) %>%
+    drop_na()
+
+  # Step 2: Reshape MOFA data and assign the dependent variable values to the 4th column
+  aligned_glyco_long <- aligned_glyco %>%
+    pivot_longer(cols = -Accession, names_to = "Subject.ID", values_to = "independent_value") %>%
+    inner_join(data_filtered, by = "Subject.ID") %>%
+    # Assign the dependent variable values to the 4th column ('dependent_value')
+    mutate(dependent_value = .[[dependent_variable]]) %>%
+    # Select only the necessary columns: Accession, Subject.ID, independent_value, dependent_value
+    dplyr::select(Accession, Subject.ID, independent_value, dependent_value)
+
+  # Step 3: Perform regression using the dependent and independent variable for each Accession
+  regression_results <- aligned_glyco_long %>%
+    group_by(Accession) %>%
+    do({
+      # Apply regression model for each Accession group
+      model <- lm(dependent_value ~ independent_value, data = .)
+      
+      # Get the model summary and extract the relevant coefficients, p-values, and R-squared
+      data.frame(
+        Coefficient = coef(model)[2],  # Get the coefficient of the independent variable
+        P_Value = summary(model)$coefficients[2, 4],  # Get the p-value of the independent variable
+        R_Squared = summary(model)$r.squared  # Get R-squared value
+      )
+    }) %>%
+    ungroup() %>%
+    mutate(Q_Value = p.adjust(P_Value, method = "fdr"))  # Apply FDR correction for p-values
+
+  # Step 4: Print regression results for the current dependent variable
+  print(regression_results)
+
+  # Step 5: Save the results to a CSV file with a dynamic filename based on the dependent variable
+  filename <- paste0("regression_results_", dependent_variable, ".csv")
+  write.csv(regression_results, filename, row.names = FALSE)
+  cat("Results saved to", filename, "\n")
+  
+  # Step 6: Pause after processing each dependent variable
+  #readline(prompt = paste("Press Enter to continue to the next dependent variable (", dependent_variable, ")..."))
+}
+
+# Now, the regression results for each dependent variable are saved with appropriate filenames.
+```
+
+#combine results
+
+```{r}
+# Set the directory where the regression result CSV files are stored
+files_directory <- "C:/Users/mwfoster/Documents/10555/lm_glyco"  # Replace with the actual directory path
+
+# List all CSV files that start with "regression_results_"
+csv_files <- list.files(path = files_directory, pattern = "^regression_results_.*\\.csv$", full.names = TRUE)
+
+# Initialize an empty list to store each data frame
+all_data_frames <- list()
+
+# Loop over the CSV files, load them, and add to the list
+for (file in csv_files) {
+  
+  # Load the CSV file
+  df <- read.csv(file)
+  
+  # Check if 'Accession' column exists
+  if (!"Accession" %in% colnames(df)) {
+    stop(paste("Error: 'Accession' column not found in file:", file))
+  }
+  
+  # Standardize the 'Accession' column header by removing everything after the first underscore
+  colnames(df)[colnames(df) == "Accession"] <- sub("_.*", "", "Accession")
+  
+  # Extract the dependent variable from the filename (e.g., 'age' from 'regression_results_age.csv')
+  dependent_variable <- gsub("regression_results_(.*).csv", "\\1", basename(file))
+  
+  # Rename the regression result columns (e.g., Coefficient, P_Value) to reflect the dependent variable (e.g., Coefficient_age, P_Value_age)
+  colnames(df)[!colnames(df) %in% "Accession"] <- paste(colnames(df)[!colnames(df) %in% "Accession"], dependent_variable, sep = "_")
+  
+  # Add the data frame to the list
+  all_data_frames[[dependent_variable]] <- df
+}
+
+# Combine all data frames into one by aligning them based on the 'Accession' column
+combined_data <- Reduce(function(x, y) merge(x, y, by = "Accession", all = TRUE), all_data_frames)
+
+# View the combined data
+head(combined_data)
+
+# Optionally, save the combined results to a new CSV file
+write.csv(combined_data, "glyco_combined_regression_results.csv", row.names = FALSE)
+
+cat("Combined results saved to combined_regression_results.csv\n")
+
+```
+
+#plot Clus N374 uvascore
+
+```{r}
+# Specify the Accession and dependent variable for regression
+accession <- "CLUS_LANL_H(6)N(5)S(2)F(2)"  # Example Accession
+dependent_variable <- "uvascore"
+# Extract the row corresponding to the specified Accession
+independent_var <- aligned_glyco[aligned_glyco$Accession == accession, ]
+
+# Match sample IDs from "aligned_glyco" with "Subject.ID" in "prospective_data"
+matched_data <- data.frame(
+  Independent = as.numeric(independent_var),
+  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
+)
+
+# Remove rows with NA values (in case of missing matches)
+matched_data <- na.omit(matched_data)
+
+# Plot the regression results
+plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  labs(
+    x = dependent_variable,
+    y = "CLUS_N374 \nH6N5S2F2 (log2)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 18, face = "bold"),  # Increase x-axis label size
+    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
+    axis.text.x = element_text(size = 18, face = "bold"),   # Increase x-axis label size
+    axis.text.y = element_text(size = 18, face = "bold"),   # Increase y-axis label size
+    plot.title = element_blank()  # Remove title
+  )
+
+# Save the plot
+print(plot)
+
+# Save the plot as a PNG file
+ggsave("clus_uvascore_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
+
+```
+
+##CLUS_MLNT_H(6)N(5)S(2)F(2) regression
+
+```{r}
+# Specify the Accession and dependent variable for regression
+accession <- "CLUS_MLNT_H(6)N(5)S(2)F(2)"  # Example Accession
+dependent_variable <- "crp"
+# Extract the row corresponding to the specified Accession
+independent_var <- aligned_glyco[aligned_glyco$Accession == accession, ]
+
+# Match sample IDs from "aligned_glyco" with "Subject.ID" in "prospective_data"
+matched_data <- data.frame(
+  Independent = as.numeric(independent_var),
+  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
+)
+
+# Remove rows with NA values (in case of missing matches)
+matched_data <- na.omit(matched_data)
+
+# Plot the regression results
+plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
+  geom_point(color = "blue", size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  labs(
+    x = dependent_variable,
+    y = "CLUS_N354 \nH6N5S2F2 (log2)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_text(size = 18, face = "bold"),  # Increase x-axis label size
+    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
+    axis.text.x = element_text(size = 18, face = "bold"),   # Increase x-axis label size
+    axis.text.y = element_text(size = 18, face = "bold"),   # Increase y-axis label size
+    plot.title = element_blank()  # Remove title
+  )
+
+# Save the plot
+print(plot)
+
+# Save the plot as a PNG file
+ggsave("clus_crp_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
+
+```
+

@@ -1,7 +1,6 @@
 ---
 title: "Protein Abundance Timecourse Analysis (Z-scored, Outliers Removed)"
-author: "Your Name"
-date: "`r Sys.Date()`"
+author: "M. Foster"
 output: html_document
 ---
 
