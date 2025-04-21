@@ -107,7 +107,7 @@ aligned_unenriched <- imputedlog2unenriched_data %>%
 write.csv(aligned_unenriched, "Aligned_unenriched_Data.csv", row.names = FALSE)
 write.csv(prospective_data, "Prospective_data.csv", row.names = FALSE)
 ```
-#perform regression on all dependent varoiables
+#perform regression on all dependent variables
 ```{r}
 
 # List all columns except the first two
@@ -266,7 +266,11 @@ lollipop_plot <- ggplot(filtered_crp_data, aes(x = Coefficient, y = Accession)) 
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
         axis.title.y = element_text(face = "bold", size = 20),  # Increase y-axis title font size
-        plot.title = element_text(size = 20, face = "bold")) +  # Increase plot title font size
+        plot.title = element_text(size = 20, face = "bold"),
+        
+        legend.title = element_text(size = 16, face = "bold"),
+        # Legend title font size
+        legend.text = element_text(size = 16)) +  # Legend label font size  # Increase plot title font size
   
   coord_cartesian(clip = "off") +  # Allow top circle to extend beyond the plot area
   guides(
@@ -344,7 +348,11 @@ lollipop_plot <- ggplot(filtered_wbc_data, aes(x = Coefficient, y = Accession)) 
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
         axis.title.y = element_text(face = "bold", size = 20),  # Increase y-axis title font size
-        plot.title = element_text(size = 20, face = "bold")) +  # Increase plot title font size
+        plot.title = element_text(size = 20, face = "bold"),
+        
+        legend.title = element_text(size = 16, face = "bold"),
+        # Legend title font size
+        legend.text = element_text(size = 16)) +  # Legend label font size  # Increase plot title font size
   
   coord_cartesian(clip = "off") +  # Allow top circle to extend beyond the plot area
   guides(
