@@ -162,7 +162,7 @@ plot_zscored_protein("LUM_LHIN_H(5)N(4)S(2)F(1)", save_path = "LUM_N127_H5N4S2F1
 
 ```{r lum1-z-plot}
 plot_zscored_protein("Lum_Sky_1059", save_path = "LUM_N127_H5N4S2F1_DIA.png", 
-                     y_label = "Lum_N127_DIA\nH5N4S2F1 (Z-score)")
+                     y_label = "LUM_N127_DIA\nH5N4S2F1 (Z-score)")
 
 ```
 
