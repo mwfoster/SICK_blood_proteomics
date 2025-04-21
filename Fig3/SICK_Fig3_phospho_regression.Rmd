@@ -280,7 +280,11 @@ lollipop_plot <- ggplot(filtered_uvascore_data, aes(x = Coefficient, y = Accessi
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
         axis.title.y = element_text(face = "bold", size = 20),  # Increase y-axis title font size
-        plot.title = element_text(size = 20, face = "bold")) +  # Increase plot title font size
+        plot.title = element_text(size = 20, face = "bold"),
+        
+        legend.title = element_text(size = 16, face = "bold"),
+        # Legend title font size
+        legend.text = element_text(size = 16)) +  # Legend label font size  # Increase plot title font size
   
   coord_cartesian(clip = "off") +  # Allow top circle to extend beyond the plot area
   guides(
