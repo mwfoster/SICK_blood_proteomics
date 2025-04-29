@@ -275,7 +275,7 @@ lollipop_plot <- ggplot(filtered_uvascore_data, aes(x = Coefficient, y = Accessi
                                          length.out = 7))  # Format the labels based on breaks
   ) +
   
-  labs(x = "Coefficient", y = "Protein Group") +  # Removed title
+  labs(x = "Coefficient (UVA score)", y = "Protein Group") +  # Removed title
   theme(axis.text.x = element_text(face = "bold", angle = 45, hjust = 1, size = 16),  # Increase x-axis font size
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
@@ -324,7 +324,7 @@ plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
   geom_point(color = "blue", size = 3, alpha = 0.7) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
   labs(
-    x = dependent_variable,
+    x = "UVA score",
     y = "OSTP_S270_M2_2 \n(log2)"
   ) +
   theme_minimal() +
@@ -366,7 +366,7 @@ plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
   geom_point(color = "blue", size = 3, alpha = 0.7) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
   labs(
-    x = dependent_variable,
+    x = "UVA score",
     y = "OSTP_S270_M2_2 \n(log2)"
   ) +
   theme_minimal() +
