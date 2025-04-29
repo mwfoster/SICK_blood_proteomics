@@ -21,27 +21,7 @@ glyco_data <- read_csv("glyco_MOFA_sky.csv")
 cleaned_glyco_data <- glyco_data %>%
   dplyr::rename_with(~ str_remove(., "^X"), -Accession)  # Remove leading X from column names except Accession
 
-# Define a function to abbreviate feature names
-abbreviate_feature_name <- function(feature_name) {
-  parts <- strsplit(feature_name, "_")[[1]]
-  
-  if (length(parts) > 1) {
-    # Keep the first part as-is
-    # Abbreviate the first 4 characters after the first "_" and replace specific patterns after the second "_"
-    processed <- paste0(
-      parts[1], "_",
-      paste0(ifelse(seq_along(parts[-1]) == 1, substr(parts[-1], 1, 4), 
-                    gsub("Hex", "H", gsub("HexNAc", "N", gsub("NeuAc", "S", gsub("Fuc", "F", parts[-1]))))), collapse = "_")
-    )
-  } else {
-    processed <- feature_name
-  }
-  
-  return(processed)
-}
 
-# Apply the function to the "Accession" column of "cleaned_glyco_data"
-cleaned_glyco_data$Accession <- sapply(cleaned_glyco_data$Accession, abbreviate_feature_name)
 ```
 
 #KNN imputation
@@ -154,14 +134,14 @@ plot_zscored_protein <- function(protein_name, save_path = NULL, y_label = NULL)
 ## LUM DDA (Z-scored, Outliers Removed)
 
 ```{r lum1-z-plot}
-plot_zscored_protein("LUM_LHIN_H(5)N(4)S(2)F(1)", save_path = "LUM_N127_H5N4S2F1_DDA.png", 
+plot_zscored_protein("LUM_N127_H(5)N(4)S(2)F(1)_1", save_path = "LUM_N127_H5N4S2F1_DDA.png", 
                      y_label = "LUM_N127_DDA\nH5N4S2F1 (Z-score)")
 ```
 
 ## LUM DIA
 
 ```{r lum1-z-plot}
-plot_zscored_protein("Lum_Sky_1059", save_path = "LUM_N127_H5N4S2F1_DIA.png", 
+plot_zscored_protein("LUM_Sky_N127_H(5)N(4)S(2)F(1)", save_path = "LUM_N127_H5N4S2F1_DIA.png", 
                      y_label = "LUM_N127_DIA\nH5N4S2F1 (Z-score)")
 
 ```
@@ -169,26 +149,26 @@ plot_zscored_protein("Lum_Sky_1059", save_path = "LUM_N127_H5N4S2F1_DIA.png",
 ## A1AG1 DDA
 
 ```{r lum1-z-plot}
-plot_zscored_protein("A1AG1_QDQC_H(5)N(4)S(2)", save_path = "A1AG1_N93_H5N4S2_DDA.png", 
+plot_zscored_protein("A1AG1_N93_H(5)N(4)S(2)", save_path = "A1AG1_N93_H5N4S2_DDA.png", 
                      y_label = "A1AG1_N93_DDA \nH5N4S2 (Z-score)")
 ```
 
 ## A1AG1 DIA
 
 ```{r a1ag1-z-plot}
-plot_zscored_protein("A1AG1_FP_QDQC_H(5)N(4)S(2)", save_path = "A1AG1_N93_H5N4S2_DIA.png", y_label = "A1AG1_N93_DIA\n H5N4S2 (Z-score)")
+plot_zscored_protein("A1AG1_Sky_N93_H(5)N(4)S(2)", save_path = "A1AG1_N93_H5N4S2_DIA.png", y_label = "A1AG1_N93_DIA\n H5N4S2 (Z-score)")
 
 ```
 
 ## HPT DDA
 
 ```{r hapt-z-plot}
-plot_zscored_protein("HPT_NLFL_H(5)N(4)S(2)", save_path = "HPT_N207_H5N4S2_DDA.png", y_label = "HPT_N207_DDA \nH5N4S2 (Z-score)")
+plot_zscored_protein("HPT_Sky_N207_H(5)N(4)S(2)", save_path = "HPT_N207_H5N4S2_DDA.png", y_label = "HPT_N207_DDA \nH5N4S2 (Z-score)")
 ```
 
 ## HPT DIA
 
 ```{r hapt-z-plot}
-plot_zscored_protein("HPT_SKY_H(5)N(4)S(2)", save_path = "HPT_N207_H5N4S2_DIA.png", y_label = "HPT_N207_DIA \nH5N4S2 (Z-score)")
+plot_zscored_protein("HPT_Sky_N207_H(5)N(4)S(2)", save_path = "HPT_N207_H5N4S2_DIA.png", y_label = "HPT_N207_DIA \nH5N4S2 (Z-score)")
 ```
 

@@ -39,27 +39,6 @@ filtered_data <- prospective_data %>%
 cleaned_glyco_data <- glyco_data %>%
   dplyr::rename_with(~ str_remove(., "^X"), -Accession)  # Remove leading X from column names except Accession
 
-# Define a function to abbreviate feature names
-abbreviate_feature_name <- function(feature_name) {
-  parts <- strsplit(feature_name, "_")[[1]]
-  
-  if (length(parts) > 1) {
-    # Keep the first part as-is
-    # Abbreviate the first 4 characters after the first "_" and replace specific patterns after the second "_"
-    processed <- paste0(
-      parts[1], "_",
-      paste0(ifelse(seq_along(parts[-1]) == 1, substr(parts[-1], 1, 4), 
-                    gsub("Hex", "H", gsub("HexNAc", "N", gsub("NeuAc", "S", gsub("Fuc", "F", parts[-1]))))), collapse = "_")
-    )
-  } else {
-    processed <- feature_name
-  }
-  
-  return(processed)
-}
-
-# Apply the function to the "Accession" column of "cleaned_glyco_data"
-cleaned_glyco_data$Accession <- sapply(cleaned_glyco_data$Accession, abbreviate_feature_name)
 
 # View the updated data
 dim(cleaned_glyco_data)  # To confirm dimensions
@@ -199,11 +178,8 @@ for (dependent_variable in predictor_columns) {
 #combine results
 
 ```{r}
-# Set the directory where the regression result CSV files are stored
-files_directory <- "C:/Users/mwfoster/Documents/10555/lm_glyco"  # Replace with the actual directory path
-
-# List all CSV files that start with "regression_results_"
-csv_files <- list.files(path = files_directory, pattern = "^regression_results_.*\\.csv$", full.names = TRUE)
+# List all CSV files in the working directory that start with "regression_results_"
+csv_files <- list.files(pattern = "^regression_results_.*\\.csv$", full.names = TRUE)
 
 # Initialize an empty list to store each data frame
 all_data_frames <- list()
@@ -249,7 +225,7 @@ cat("Combined results saved to combined_regression_results.csv\n")
 
 ```{r}
 # Specify the Accession and dependent variable for regression
-accession <- "CLUS_LANL_H(6)N(5)S(2)F(2)"  # Example Accession
+accession <- "CLUS_N374_H(6)N(5)S(2)F(2)"  # Example Accession
 dependent_variable <- "uvascore"
 # Extract the row corresponding to the specified Accession
 independent_var <- aligned_glyco[aligned_glyco$Accession == accession, ]
@@ -292,7 +268,7 @@ ggsave("clus_uvascore_regression.png", plot = plot, width = 4, height = 3, dpi =
 
 ```{r}
 # Specify the Accession and dependent variable for regression
-accession <- "CLUS_MLNT_H(6)N(5)S(2)F(2)"  # Example Accession
+accession <- "CLUS_N354_H(6)N(5)S(2)F(2)"  # Example Accession
 dependent_variable <- "crp"
 # Extract the row corresponding to the specified Accession
 independent_var <- aligned_glyco[aligned_glyco$Accession == accession, ]
