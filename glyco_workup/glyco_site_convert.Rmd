@@ -1,0 +1,480 @@
+---
+title: "Glycosylation Motif Identification"
+author: "M. Foster"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Setup code to load necessary libraries and options
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(data.table)
+library(dplyr)
+library(limma)
+library(tidyverse)
+```
+
+#Quantile normalization
+
+```{r}
+
+# Load the glyco data from a .tsv file
+glyco_file <- "glycopeptide_filtered.csv"
+glyco_data <- read.table(glyco_file, header = TRUE, sep = ",")
+
+# Extract the first three non-data columns
+non_data_columns <- glyco_data[, 1:3]
+
+# Extract columns containing "ID"
+id_columns <- grep("ID", colnames(glyco_data), value = TRUE)
+data <- glyco_data[, id_columns]
+
+# Perform quantile normalization using normalizeBetweenArrays
+normalized_data <- normalizeBetweenArrays(as.matrix(data), method = "quantile")
+
+# Convert normalized matrix back to a data frame
+normalized_data <- as.data.frame(normalized_data)
+colnames(normalized_data) <- colnames(data)  # Preserve column names
+
+# Add the first three non-data columns back to the normalized data
+normalized_data <- cbind(non_data_columns, normalized_data)
+
+#export data
+write.csv(normalized_data, "glyco_quantile_normalized.csv", row.names = FALSE)
+# Display the first few rows of the dataset
+
+
+```
+
+#remove rows with missing data in SPQC
+
+```{r}
+# Remove rows with missing values in "SPQC" columns
+normalized_data_SPQC <- normalized_data %>%
+  filter(!if_any(contains("SPQC"), is.na))
+
+# Display the first few rows of the cleaned data
+head(normalized_data_SPQC)
+```
+
+#load fasta
+
+```{r}
+# Function to load a FASTA file and extract protein sequences
+load_fasta <- function(fasta_file) {
+  # Read the FASTA file
+  fasta_data <- readLines(fasta_file)
+  
+  # Initialize an empty list to store protein sequences
+  protein_sequences <- list()
+  accession <- ""
+  sequence <- ""
+  
+  # Parse the FASTA file
+  for (line in fasta_data) {
+    if (startsWith(line, ">")) {  # Header line starts with '>'
+      if (accession != "") {
+        protein_sequences[[accession]] <- sequence  # Store the previous sequence
+      }
+      # Extract the accession from the header (after '>')
+      accession <- strsplit(line, "\\|")[[1]][2]
+      sequence <- ""  # Reset sequence
+    } else {
+      sequence <- paste0(sequence, line)  # Append sequence
+    }
+  }
+  # Store the last sequence
+  if (accession != "") {
+    protein_sequences[[accession]] <- sequence
+  }
+  
+  return(protein_sequences)
+}
+
+# Load the FASTA file (update the file path as needed)
+fasta_file <- "uniprotkb_UP000005640_2024_04_22_human_adh_lysc_trypsin_variant.fasta"
+protein_sequences <- load_fasta(fasta_file)
+
+# Display the first few protein sequences
+head(protein_sequences)
+
+```
+
+#extend peptide sequence
+
+```{r}
+
+# Function to remove extra text after the peptide (if it contains "Carbamidomethyl" or other modifications)
+remove_extra_text <- function(peptide) {
+  # Split the peptide sequence at the first space (if it exists) and keep only the first part
+  split_peptide <- strsplit(peptide, " ")[[1]]
+  return(split_peptide[1])  # Return the part before the first space
+}
+
+# Function to extend the peptide sequence by 2 residues before and after the peptide
+extend_peptide_sequence_step1 <- function(peptide, protein_sequence, extension = 2) {
+  # Check if the peptide is empty or NA
+  if (is.null(peptide) || nchar(peptide) == 0) {
+    return(NA)
+  }
+
+  # Remove extra text from the peptide sequence (e.g., Carbamidomethyl)
+  peptide <- remove_extra_text(peptide)
+
+  # Find the position of the peptide in the protein sequence
+  start_pos <- regexpr(peptide, protein_sequence)
+  
+  # If the peptide is found, extend it by 2 residues before and after the peptide
+  if (start_pos != -1) {
+    start <- max(start_pos - extension, 1)  # Ensure we don't go out of bounds (1-based index)
+    end <- min(start_pos + nchar(peptide) + extension - 1, nchar(protein_sequence))  # Extend by 2 residues
+    extended_sequence <- substr(protein_sequence, start, end)
+    return(extended_sequence)
+  } else {
+    return(NA)
+  }
+}
+
+# Apply the function to the entire glyco_data to extend peptide sequences
+normalized_data_SPQC$Extended_Peptide_Sequence <- mapply(function(peptide, protein) {
+  extend_peptide_sequence_step1(peptide, protein_sequences[[protein]], extension = 2)
+}, normalized_data_SPQC$Peptide, normalized_data_SPQC$Protein)
+
+# Display the first few rows to confirm the changes
+head(normalized_data_SPQC)
+
+```
+
+#find N-X-S/T motif
+
+```{r}
+# Function to check if a peptide contains the N-X-S/T motif where X is not P
+contains_nglycosylation_motif <- function(peptide) {
+  motifs <- list()
+  # Check if peptide is not empty or NA
+  if (is.null(peptide) || nchar(peptide) == 0) {
+    return(motifs)
+  }
+  for (i in 1:(nchar(peptide) - 2)) {
+    if (substr(peptide, i, i) == "N" && substr(peptide, i + 2, i + 2) %in% c("S", "T") && substr(peptide, i + 1, i + 1) != "P") {
+      motifs <- append(motifs, list(i))  # Return the position of the N in the motif
+    }
+  }
+  return(motifs)
+}
+
+# Apply the function to detect peptides with N-X-S/T motif (where X is not P)
+normalized_data_SPQC$Has_NGlycosylation_Motif <- sapply(normalized_data_SPQC$Extended_Peptide_Sequence, function(peptide) {
+  # If motifs are found, mark the peptide as containing the motif
+  if (length(contains_nglycosylation_motif(peptide)) > 0) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+})
+
+# Display the first few rows to confirm the changes
+head(normalized_data_SPQC)
+
+
+```
+
+#remove peptides without N-X-S/T motif and determine site
+
+```{r}
+# Function to check if a peptide contains the N-X-S/T motif where X is not P
+contains_nglycosylation_motif <- function(peptide) {
+  motifs <- list()
+  # Check if peptide is not empty or NA
+  if (is.null(peptide) || nchar(peptide) == 0) {
+    return(motifs)
+  }
+  for (i in 1:(nchar(peptide) - 2)) {
+    if (substr(peptide, i, i) == "N" && substr(peptide, i + 2, i + 2) %in% c("S", "T") && substr(peptide, i + 1, i + 1) != "P") {
+      motifs <- append(motifs, list(i))  # Return the position of the N in the motif
+    }
+  }
+  return(motifs)
+}
+
+# Create the Has_NGlycosylation_Motif column by checking each peptide
+normalized_data_SPQC$Has_NGlycosylation_Motif <- sapply(normalized_data_SPQC$Extended_Peptide_Sequence, function(peptide) {
+  # If motifs are found, mark the peptide as containing the motif
+  if (length(contains_nglycosylation_motif(peptide)) > 0) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
+})
+
+# Filter peptides that contain the N-X-S/T motif (where X is not P)
+glyco_data_with_motif <- normalized_data_SPQC[normalized_data_SPQC$Has_NGlycosylation_Motif == TRUE, ]
+
+# Display the first few rows of the filtered data to ensure it's correct
+head(glyco_data_with_motif)
+
+```
+
+#find glyco motif postion
+
+```{r}
+# Function to find positions of "N" in N-X-S/T motif (where X is not P) and map to protein sequence
+find_nglycosylation_site_position <- function(peptide, protein_sequence) {
+  # Initialize list for storing positions
+  positions <- list()
+  
+  # Find all positions of "N" in the peptide sequence
+  for (i in 1:(nchar(peptide) - 2)) {
+    # Check for N-X-S/T motif where X is not P
+    if (substr(peptide, i, i) == "N" && substr(peptide, i + 2, i + 2) %in% c("S", "T") && substr(peptide, i + 1, i + 1) != "P") {
+      # Map peptide position to protein sequence (1-based index)
+      start_pos <- regexpr(peptide, protein_sequence)
+      if (start_pos != -1) {
+        # Calculate absolute position of "N" in the protein sequence
+        abs_position <- start_pos + i - 1
+        positions <- append(positions, abs_position)
+      }
+    }
+  }
+  
+  return(positions)
+}
+
+# Function to create glycosylation site labels based on absolute position in protein sequence
+create_nglycosylation_labels_with_position <- function(peptide, protein_sequence) {
+  positions <- find_nglycosylation_site_position(peptide, protein_sequence)
+  if (length(positions) > 0) {
+    labels <- paste0("N", positions)  # Create labels with "N" followed by position in protein
+    return(paste(labels, collapse = "/"))  # Return labels for multiple sites as N100/N150 if applicable
+  }
+  return(NA)  # Return NA if no glycosylation site is found
+}
+
+# Apply the function to identify glycosylation sites and map positions in protein sequence
+glyco_data_with_motif$N_Glycosylation_Sites_Position <- mapply(function(peptide, protein) {
+  create_nglycosylation_labels_with_position(peptide, protein_sequences[[protein]])
+}, glyco_data_with_motif$Extended_Peptide_Sequence, glyco_data_with_motif$Protein)
+
+# Display the updated data with the glycosylation sites based on protein sequence positions
+head(glyco_data_with_motif)
+
+```
+
+#replace accession with protein name
+
+```{r}
+# Function to load a FASTA file and extract the protein name and accession
+load_fasta_headers <- function(fasta_file) {
+  fasta_data <- readLines(fasta_file)
+  
+  # Create a list to store the mappings of accession to protein name
+  accession_to_protein_name <- list()
+  
+  for (line in fasta_data) {
+    if (startsWith(line, ">")) {  # Header line starts with '>'
+      # Extract accession and protein name
+      parts <- strsplit(line, "\\|")[[1]]
+      if (length(parts) > 2) {
+        accession <- parts[2]
+        protein_name <- parts[3]
+        
+        # Remove text after and including the first "_"
+        protein_name_clean <- strsplit(protein_name, "_")[[1]][1]
+        
+        # Store the mapping: accession -> cleaned protein name
+        accession_to_protein_name[[accession]] <- protein_name_clean
+      }
+    }
+  }
+  
+  return(accession_to_protein_name)
+}
+
+# Load the FASTA file and create the mapping
+fasta_file <- "uniprotkb_UP000005640_2024_04_22_human_adh_lysc_trypsin_variant.fasta"
+accession_to_protein_name <- load_fasta_headers(fasta_file)
+
+# Now map the protein names to glyco_data_with_motif based on the accession
+glyco_data_with_motif$Protein_Name <- sapply(glyco_data_with_motif$Protein, function(accession) {
+  # Use the accession to find the corresponding protein name
+  if (accession %in% names(accession_to_protein_name)) {
+    return(accession_to_protein_name[[accession]])
+  } else {
+    return(NA)  # Return NA if accession is not found in the mapping
+  }
+})
+
+# Display the updated data with the protein names
+head(glyco_data_with_motif)
+
+```
+
+#abbreviate glycan
+
+```{r}
+# Abbreviate the Glycan column using the provided formula
+glyco_data_with_motif$Abbreviated_Glycan <- gsub("Hex", "H", gsub("HexNAc", "N", gsub("NeuAc", "S", gsub("Fuc", "F", glyco_data_with_motif$Glycan))))
+
+# Display the first few rows of the data to confirm the changes
+head(glyco_data_with_motif)
+
+```
+
+#make new column with combined accession
+
+```{r}
+# Create a new column that concatenates Protein_Name, N_Glycosylation_Sites_Position, and Glycan with underscores
+glyco_data_with_motif$Concatenated_Column <- paste(
+  glyco_data_with_motif$Protein_Name, 
+  glyco_data_with_motif$N_Glycosylation_Sites_Position, 
+  glyco_data_with_motif$Abbreviated_Glycan, 
+  sep = "_"
+)
+
+# Move the new column to the first position in the data frame
+glyco_data_with_motif <- glyco_data_with_motif[, c("Concatenated_Column", setdiff(names(glyco_data_with_motif), "Concatenated_Column"))]
+
+# Display the updated data with the concatenated column as the first column
+head(glyco_data_with_motif)
+
+```
+
+#mark duplicate glycopeptides (e.g. missed cleavages) after sorting peptide length
+
+```{r}
+# Function to add suffix based on peptide length (shorter to longer)
+mark_duplicates <- function(df) {
+  # Initialize a vector to store the new Concatenated_Column values
+  new_concatenated_column <- character(nrow(df))
+  
+  # Loop over each unique value in the Concatenated_Column
+  for (value in unique(df$Concatenated_Column)) {
+    # Get the indices of the rows with the current concatenated value
+    indices <- which(df$Concatenated_Column == value)
+    
+    if (length(indices) > 1) {
+      # If there are duplicates, sort by Peptide length (shorter to longer)
+      sorted_indices <- indices[order(nchar(df$Peptide[indices]))]
+      
+      # Assign suffixes based on the sorted order
+      for (i in seq_along(sorted_indices)) {
+        new_concatenated_column[sorted_indices[i]] <- paste0(df$Concatenated_Column[sorted_indices[i]], "_", i)
+      }
+    } else {
+      # If no duplicates, keep the original value
+      new_concatenated_column[indices] <- df$Concatenated_Column[indices]
+    }
+  }
+  
+  # Update the Concatenated_Column with the new values
+  df$Concatenated_Column <- new_concatenated_column
+  return(df)
+}
+
+# Apply the function to glyco_data_with_motif
+glyco_data_with_motif <- mark_duplicates(glyco_data_with_motif)
+
+# Display the updated data with the marked duplicates
+head(glyco_data_with_motif)
+
+#export with columns intact
+write.csv(glyco_data_with_motif, "glyco_data_with_motif_exported.csv", row.names = FALSE)
+
+```
+
+#prepare data for MOFA analysis
+
+```{r}
+
+# Select columns containing "ID" and the "Concatenated_Column"
+glyco_data_for_MOFA <- glyco_data_with_motif[, c(grep("ID", names(glyco_data_with_motif), value = TRUE), "Concatenated_Column")]
+
+# Rename the "Concatenated_Column" to "Accession"
+colnames(glyco_data_for_MOFA)[colnames(glyco_data_for_MOFA) == "Concatenated_Column"] <- "Accession"
+
+# Remove "ID" from the header of data rows
+colnames(glyco_data_for_MOFA) <- gsub("^ID", "", colnames(glyco_data_for_MOFA))
+
+# Reorder the columns to ensure "Accession" is the first column
+glyco_data_for_MOFA <- glyco_data_for_MOFA[, c("Accession", setdiff(names(glyco_data_for_MOFA), "Accession"))]
+
+# Display the first few rows of the updated data
+head(glyco_data_for_MOFA)
+
+#export data
+write.csv(glyco_data_for_MOFA, "glyco_MOFA.csv", row.names = FALSE)
+
+```
+
+#calculate %CV for SPQC and healthy control pools
+
+```{r}
+
+# Function to calculate %CV for a numeric vector, without removing NAs
+calculate_cv_without_na_removal <- function(data_subset) {
+  # Calculate the standard deviation and mean, including NA values
+  sd_value <- sd(data_subset, na.rm = FALSE)  # Do not remove NAs for calculation
+  mean_value <- mean(data_subset, na.rm = FALSE)  # Do not remove NAs for calculation
+  
+  # If the row contains NA values, return NA for %CV
+  if (any(is.na(data_subset))) {
+    return(NA)
+  }
+  
+  # Calculate %CV and handle division by zero
+  if (mean_value == 0) {
+    return(NA)  # If mean is zero, return NA to avoid division by zero
+  } else {
+    return((sd_value / mean_value) * 100)
+  }
+}
+
+
+# Identify columns related to SPQC in glyco_data_for_MOFA
+spqc_columns <- grep("^SPQC", names(glyco_data_for_MOFA), value = TRUE)
+
+# Calculate %CV for SPQC group for each row
+glyco_data_for_MOFA$SPQC_CV <- apply(glyco_data_for_MOFA[, spqc_columns], 1, calculate_cv_without_na_removal)
+
+# Compute median %CV for the SPQC group (ignoring NAs)
+median_spqc_cv <- median(glyco_data_for_MOFA$SPQC_CV, na.rm = TRUE)
+
+# Function to calculate %CV for a numeric vector, handling missing values (NA)
+calculate_cv <- function(data_subset) {
+  # Remove NA values from the subset
+  data_subset <- na.omit(data_subset)
+  
+  # If the subset becomes empty (i.e., all values were NA), return NA
+  if (length(data_subset) == 0) {
+    return(NA)
+  }
+  
+  # Calculate the standard deviation and mean, ignoring NA values
+  sd_value <- sd(data_subset, na.rm = TRUE)
+  mean_value <- mean(data_subset, na.rm = TRUE)
+  
+  # Calculate %CV and handle division by zero
+  if (mean_value == 0) {
+    return(NA)  # If mean is zero, return NA to avoid division by zero
+  } else {
+    return((sd_value / mean_value) * 100)
+  }
+}
+
+# Identify columns related to samples 120714, 120741, 120768, and 120795 in glyco_data_for_MOFA
+sample_columns <- grep("^(120714|120741|120768|120795)", names(glyco_data_for_MOFA), value = TRUE)
+
+# Calculate %CV for the sample group (120714, 120741, 120768, 120795) for each row
+glyco_data_for_MOFA$HC_CV <- apply(glyco_data_for_MOFA[, sample_columns], 1, calculate_cv)
+
+# Compute median %CV for all non-NA rows
+median_HC_CV <- median(glyco_data_for_MOFA$HC_CV, na.rm = TRUE)
+
+# Display the median %CV for the sample group
+cat("Median %CV for 120714, 120741, 120768, 120795 samples:", median_HC_CV, "\n")
+
+# Display the updated dataset with the calculated HC_CV values
+head(glyco_data_for_MOFA)
+
+```
+
