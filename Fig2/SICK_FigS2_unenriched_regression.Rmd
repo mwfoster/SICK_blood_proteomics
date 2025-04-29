@@ -1,5 +1,5 @@
 ---
-title: "SICK_Fig2: Unenriched_regression"
+title: "SICK_FigS2: Unenriched_regression"
 author: "M. Foster"
 output: html_document
 ---
@@ -107,7 +107,7 @@ aligned_unenriched <- imputedlog2unenriched_data %>%
 write.csv(aligned_unenriched, "Aligned_unenriched_Data.csv", row.names = FALSE)
 write.csv(prospective_data, "Prospective_data.csv", row.names = FALSE)
 ```
-#perform regression on all dependent variables
+#perform regression on all dependent varoiables
 ```{r}
 
 # List all columns except the first two
@@ -261,16 +261,12 @@ lollipop_plot <- ggplot(filtered_crp_data, aes(x = Coefficient, y = Accession)) 
                                          length.out = 7))  # Format the labels based on breaks
   ) +
   
-  labs(x = "Coefficient (CRP)", y = "Protein Group") +  # Removed title
+  labs(x = "Coefficient", y = "Protein Group") +  # Removed title
   theme(axis.text.x = element_text(face = "bold", angle = 45, hjust = 1, size = 16),  # Increase x-axis font size
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
         axis.title.y = element_text(face = "bold", size = 20),  # Increase y-axis title font size
-        plot.title = element_text(size = 20, face = "bold"),
-        
-        legend.title = element_text(size = 16, face = "bold"),
-        # Legend title font size
-        legend.text = element_text(size = 16)) +  # Legend label font size  # Increase plot title font size
+        plot.title = element_text(size = 20, face = "bold")) +  # Increase plot title font size
   
   coord_cartesian(clip = "off") +  # Allow top circle to extend beyond the plot area
   guides(
@@ -343,16 +339,12 @@ lollipop_plot <- ggplot(filtered_wbc_data, aes(x = Coefficient, y = Accession)) 
                                          length.out = 7))  # Format the labels based on breaks
   ) +
   
-  labs(x = "Coefficient (WBC)", y = "Protein Group") +  # Removed title
+  labs(x = "Coefficient", y = "Protein Group") +  # Removed title
   theme(axis.text.x = element_text(face = "bold", angle = 45, hjust = 1, size = 16),  # Increase x-axis font size
         axis.text.y = element_text(face = "bold", size = 16),  # Increase y-axis font size and make bold
         axis.title.x = element_text(face = "bold", size = 20),  # Increase x-axis title font size
         axis.title.y = element_text(face = "bold", size = 20),  # Increase y-axis title font size
-        plot.title = element_text(size = 20, face = "bold"),
-        
-        legend.title = element_text(size = 16, face = "bold"),
-        # Legend title font size
-        legend.text = element_text(size = 16)) +  # Legend label font size  # Increase plot title font size
+        plot.title = element_text(size = 20, face = "bold")) +  # Increase plot title font size
   
   coord_cartesian(clip = "off") +  # Allow top circle to extend beyond the plot area
   guides(
@@ -369,89 +361,4 @@ ggsave("wbc_lollipop_plot.png", plot = lollipop_plot, device = "png", dpi = 600)
 
 ```
 
-#plot results for Clus/crp for FigS2
 
-```{r}
-# Specify the Accession and dependent variable for regression
-accession <- "CLUS_HUMAN"  # Example Accession
-dependent_variable <- "crp"  # Example dependent variable
-
-# Extract the row corresponding to the specified Accession
-independent_var <- aligned_unenriched[aligned_unenriched$Accession == accession, ]
-
-# Match sample IDs from "aligned_unenriched" with "Subject.ID" in "prospective_data"
-matched_data <- data.frame(
-  Independent = as.numeric(independent_var),
-  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
-)
-
-# Remove rows with NA values (in case of missing matches)
-matched_data <- na.omit(matched_data)
-
-# Plot the regression results
-plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
-  geom_point(color = "blue", size = 3, alpha = 0.7) +
-  geom_smooth(method = "lm", color = "red", se = TRUE) +
-  labs(
-    x = dependent_variable,
-    y = "CLUS (log2)"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.title.x = element_text(size = 16, face = "bold"),  # Increase x-axis label size
-    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
-    axis.text.x = element_text(size = 16, face = "bold"),   # Increase x-axis label size
-    axis.text.y = element_text(size = 16, face = "bold"),   # Increase y-axis label size
-    plot.title = element_blank()  # Remove title
-  )
-
-# Save the plot
-print(plot)
-
-# Save the plot as a PNG file
-ggsave("FigS2_Clus_crp_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
-```
-
-#plot results for Clus/uvascore for FigS2
-
-```{r}
-# Specify the Accession and dependent variable for regression
-accession <- "CLUS_HUMAN"  # Example Accession
-dependent_variable <- "uvascore"  # Example dependent variable
-
-# Extract the row corresponding to the specified Accession
-independent_var <- aligned_unenriched[aligned_unenriched$Accession == accession, ]
-
-# Match sample IDs from "aligned_unenriched" with "Subject.ID" in "prospective_data"
-matched_data <- data.frame(
-  Independent = as.numeric(independent_var),
-  Dependent = prospective_data[[dependent_variable]][match(names(independent_var), prospective_data$Subject.ID)]
-)
-
-# Remove rows with NA values (in case of missing matches)
-matched_data <- na.omit(matched_data)
-
-# Plot the regression results
-plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
-  geom_point(color = "blue", size = 3, alpha = 0.7) +
-  geom_smooth(method = "lm", color = "red", se = TRUE) +
-  labs(
-    x = dependent_variable,
-    y = "CLUS (log2)"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.title.x = element_text(size = 16, face = "bold"),  # Increase x-axis label size
-    axis.title.y = element_text(size = 16, face = "bold"),  # Increase y-axis label size
-    axis.text.x = element_text(size = 16, face = "bold"),   # Increase x-axis label size
-    axis.text.y = element_text(size = 16, face = "bold"),   # Increase y-axis label size
-    plot.title = element_blank()  # Remove title
-  )
-
-# Save the plot
-print(plot)
-
-# Save the plot as a PNG file
-ggsave("FigS2_Clus_uvascore_regression.png", plot = plot, width = 4, height = 3, dpi = 300)
-
-```
