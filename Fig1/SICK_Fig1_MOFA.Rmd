@@ -261,7 +261,7 @@ ggsave("top_20_weights_unenriched.png", plot = unenriched_plot, width = 16, heig
 
 ```{r}
 # Get weights for a specific view and factor
-weights <- get_weights(mofa, view = "Glyco", factor =1)
+weights <- get_weights(mofa, view = "Glyco", factor = 1)
 
 # Inspect the first few weights
 head(weights)
@@ -295,31 +295,13 @@ write.csv(top_weights_df, file = "top_20_weights_glyco_factor1.csv", row.names =
 # Load the dataset
 glyco_data <- read.csv("top_20_weights_glyco_factor1.csv")  # Update with your actual file path
 
-# Define a function to abbreviate feature names
-abbreviate_feature_name <- function(feature_name) {
-  parts <- strsplit(feature_name, "_")[[1]]
-  
-  if (length(parts) > 1) {
-    # Keep the first part as-is
-    # Abbreviate the first 4 characters after the first "_" and replace specific patterns after the second "_"
-    processed <- paste0(
-      parts[1], "_",
-      paste0(ifelse(seq_along(parts[-1]) == 1, substr(parts[-1], 1, 4), 
-                    gsub("Hex", "H", gsub("HexNAc", "N", gsub("NeuAc", "S", gsub("Fuc", "F", parts[-1]))))), collapse = "_")
-    )
-    return(processed)
-  }
-  
-  return(feature_name)
-}
-
-# Apply the abbreviation function to the dataset
-glyco_data$ProcessedFeature <- sapply(glyco_data$Feature, abbreviate_feature_name)
+# No abbreviation function, just use the original feature names directly
+glyco_data$ProcessedFeature <- glyco_data$Feature
 
 # Reorder the data to place the largest absolute weight at the top
 glyco_data <- glyco_data[order(abs(glyco_data$Weight), decreasing = TRUE), ]
 
-# Create the Glycopeptide plot
+# Create the Glycopeptide plot using original feature names
 glyco_plot <- ggplot(glyco_data, aes(x = Weight, y = reorder(ProcessedFeature, abs(Weight)))) +
   geom_bar(stat = "identity", fill = "darkgrey", color = "black", width = 0.8) +  # Darker bars and add space between bars
   geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
@@ -343,6 +325,7 @@ ggsave("top_20_weights_glycopeptide_factor_1.png", plot = glyco_plot, width = 16
 
 # Display a message
 cat("The plot with darker bars and space between them has been saved as 'top_20_weights_glycopeptide_darker.png'\n")
+
 ```
 #get top weights and plot phospho, factor 1
 ```{r}
@@ -408,6 +391,39 @@ ggsave("top_20_weights_phospho_PTMlinear_factor1.png", plot = phospho_plot, widt
 
 # Display a message
 #cat("The Phosphopeptide plot has been saved as 'top_20_weights_phosphopeptide_pt75.png'\n")
+
+```
+
+```{r}
+# Modify the plot to make other groups more transparent
+# First plot (factors 1 and 2)
+plot_1_2 <- plot_factors(mofa, factors = 1:2, color_by = "group", dot_size = 3.5, alpha = 0.6)
+
+# Adjust transparency for groups other than SPQC and HC
+plot_1_2 <- plot_1_2 + 
+  geom_point(data = subset(plot_1_2$data, !group %in% c("SPQC", "HC")), 
+             aes(color = group), size = 3.5, alpha = 0.2) +
+  geom_point(data = subset(plot_1_2$data, group %in% c("SPQC", "HC")), 
+             aes(color = group), size = 3.5, alpha = 0.8) +
+  scale_color_manual(values = c("SPQC" = "darkred", "HC" = "darkblue"))
+
+# Save the plot for factors 1 and 2
+ggsave("latent_factors_plot_1_2_rev.png", plot = plot_1_2, width = 4, height = 3, dpi = 600)
+
+# Second plot (factors 2 and 3)
+plot_2_3 <- plot_factors(mofa, factors = 2:3, color_by = "group", dot_size = 3.5, alpha = 0.6)
+
+# Adjust transparency for groups other than SPQC and HC
+plot_2_3 <- plot_2_3 + 
+  geom_point(data = subset(plot_2_3$data, !group %in% c("SPQC", "HC")), 
+             aes(color = group), size = 3.5, alpha = 0.2) +
+  geom_point(data = subset(plot_2_3$data, group %in% c("SPQC", "HC")), 
+             aes(color = group), size = 3.5, alpha = 0.8) +
+  scale_color_manual(values = c("SPQC" = "darkred", "HC" = "darkblue"))
+
+# Save the plot for factors 2 and 3
+ggsave("latent_factors_plot_2_3_rev.png", plot = plot_2_3, width = 4, height = 3, dpi = 600)
+
 
 ```
 
