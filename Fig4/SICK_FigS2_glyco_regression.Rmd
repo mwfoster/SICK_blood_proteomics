@@ -21,7 +21,7 @@ library(dplyr)
 ## Load Data
 ```{r}
 # Load datasets
-prospective_data <- read.csv("Day0_clinical_data.csv") %>% as_tibble()
+prospective_data <- read.csv("Prospective_data.csv") %>% as_tibble()
 glyco_data <- read.csv("glyco_MOFA.csv") %>% as_tibble()
 
 # Display structure of the datasets
@@ -225,8 +225,8 @@ cat("Combined results saved to combined_regression_results.csv\n")
 
 ```{r}
 # Specify the Accession and dependent variable for regression
-accession <- "CLUS_N374_H(6)N(5)S(2)F(2)"  # Example Accession
-dependent_variable <- "uvascore"
+accession <- "PON1_N324_H(6)N(5)S(2)F(2)"  # Example Accession
+dependent_variable <- "ast"
 # Extract the row corresponding to the specified Accession
 independent_var <- aligned_glyco[aligned_glyco$Accession == accession, ]
 
@@ -243,6 +243,7 @@ matched_data <- na.omit(matched_data)
 plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
   geom_point(color = "blue", size = 3, alpha = 0.7) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
+  coord_cartesian(xlim = c(0, 200)) +  # zoom in range
   labs(
     x = dependent_variable,
     y = "CLUS_N374 \nH6N5S2F2 (log2)"
@@ -286,6 +287,7 @@ matched_data <- na.omit(matched_data)
 plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
   geom_point(color = "blue", size = 3, alpha = 0.7) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
+  coord_cartesian(xlim = c(0, 200)) +  # zoom in range
   labs(
     x = dependent_variable,
     y = "CLUS_N354 \nH6N5S2F2 (log2)"
