@@ -304,8 +304,8 @@ ggsave("uvascore_lollipop_plot.png", plot = lollipop_plot, device = "png", dpi =
 #plot results for STP_S270_M2_2
 ```{r}
 # Specify the Accession and dependent variable for regression
-accession <- "OSTP_S270_M2_2_270"  # Example Accession
-dependent_variable <- "uvascore"  # Example dependent variable
+accession <- "B4GT1_S74_M1_2_74"  # Example Accession
+dependent_variable <- "crp"  # Example dependent variable
 
 # Extract the row corresponding to the specified Accession
 independent_var <- aligned_phos[aligned_phos$Accession == accession, ]
@@ -324,8 +324,8 @@ plot <- ggplot(matched_data, aes(x = Dependent, y = Independent)) +
   geom_point(color = "blue", size = 3, alpha = 0.7) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
   labs(
-    x = "UVA score",
-    y = "OSTP_S270_M2_2 \n(log2)"
+    x = "crp",
+    y = "B4GT1_S74_M1_2_74 \n(log2)"
   ) +
   theme_minimal() +
   theme(
